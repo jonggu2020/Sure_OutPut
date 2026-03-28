@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+postgres_data/
+
+# ML models (큰 파일은 Git LFS 또는 WandB Artifacts로 관리)
+*.pkl
+*.h5
+*.pt
+*.onnx
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+!model-phishing/app/ml/phishing_ml_model.pkl

@@ -1,0 +1,8 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+scikit-learn==1.5.0
+pandas==2.2.0
+joblib==1.4.0
+httpx==0.27.0
+python-whois==0.9.4
+wandb==0.18.0

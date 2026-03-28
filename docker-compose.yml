@@ -1,0 +1,117 @@
+version: "3.9"
+
+services:
+  # ============================================
+  # Gateway Server (Main API)
+  # ============================================
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://secureops:secureops@postgres:5432/secureops
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_PHISHING_URL=http://model-phishing:8001
+      - MODEL_NETWORK_URL=http://model-network:8002
+      - MODEL_AIOPS_URL=http://model-aiops:8003
+      - JWT_SECRET=your-secret-key-change-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - secureops-net
+
+  # ============================================
+  # Model 1: HTML Phishing Detection
+  # ============================================
+  model-phishing:
+    build: ./model-phishing
+    ports:
+      - "8001:8001"
+    environment:
+      - MODEL_PATH=/app/ml/model.pkl
+    networks:
+      - secureops-net
+
+  # ============================================
+  # Model 2: Network Log Analysis
+  # ============================================
+  model-network:
+    build: ./model-network
+    ports:
+      - "8002:8002"
+    networks:
+      - secureops-net
+
+  # ============================================
+  # Model 3: AIOps Resource Monitoring (Admin Only)
+  # ============================================
+  model-aiops:
+    build: ./model-aiops
+    ports:
+      - "8003:8003"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - secureops-net
+
+  # ============================================
+  # Infrastructure
+  # ============================================
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=secureops
+      - POSTGRES_PASSWORD=secureops
+      - POSTGRES_DB=secureops
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U secureops"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - secureops-net
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - secureops-net
+
+  # ============================================
+  # Monitoring (AIOps Infrastructure)
+  # ============================================
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - secureops-net
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - secureops-net
+
+volumes:
+  postgres_data:
+
+networks:
+  secureops-net:
+    driver: bridge
