@@ -158,7 +158,7 @@ docker rm -f $(docker ps -aq --filter "label=secureops=sandbox") 2>/dev/null
 
 ```bash
 cd gateway
-python -m venv .venv
+py -3.11 -m venv .venv
 
 # Windows
 .venv\Scripts\activate
@@ -185,7 +185,7 @@ uvicorn app.main:app --reload --port 8000
 
 ```bash
 cd model-phishing
-python -m venv .venv
+py -3.11 -m venv .venv
 
 # Windows
 .venv\Scripts\activate
@@ -207,7 +207,7 @@ uvicorn app.main:app --reload --port 8001
 
 ```bash
 cd model-network
-python -m venv .venv
+py -3.11 -m venv .venv
 
 # Windows
 .venv\Scripts\activate
@@ -227,7 +227,7 @@ uvicorn app.main:app --reload --port 8002
 
 ```bash
 cd model-aiops
-python -m venv .venv
+py -3.11 -m venv .venv
 
 # Windows
 .venv\Scripts\activate
