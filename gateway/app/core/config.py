@@ -30,10 +30,14 @@ class Settings(BaseSettings):
     MODEL_AIOPS_URL: str = "http://model-aiops:8003"
 
     # ── CORS ──
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    ALLOWED_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://123.212.210.230:5173",
+    ]
 
     # ── Sandbox ──
-    SANDBOX_TIMEOUT_MINUTES: int = 5
+    SANDBOX_TIMEOUT_MINUTES: int = 2
     SANDBOX_MAX_PER_USER: int = 1
 
     class Config:

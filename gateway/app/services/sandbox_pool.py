@@ -249,7 +249,7 @@ class SandboxPool:
                 container_id=container.short_id,
                 status="idle",
                 novnc_port=port,
-                novnc_url=f"http://localhost:{port}/vnc_lite.html?autoconnect=true&resize=scale",
+                novnc_url=f"http://123.212.210.230:{port}/vnc_lite.html?autoconnect=true&resize=scale",
                 cpu_limit=self.default_cpu_limit,
                 memory_limit=self.default_memory_limit,
             )
@@ -302,7 +302,7 @@ class SandboxPool:
             container = self.client.containers.get(target_name)
             # 기존 Chromium 종료 후 URL과 함께 재시작
             container.exec_run("pkill -f chromium", detach=True)
-            time.sleep(1)
+            time.sleep(3)
             container.exec_run(
                 f'chromium --no-sandbox --disable-gpu --disable-software-rasterizer '
                 f'--disable-dev-shm-usage --no-first-run --start-maximized '
@@ -313,6 +313,7 @@ class SandboxPool:
             print(f"   🌐 URL 열기: {target_name} → {url[:50]}...")
         except Exception as e:
             print(f"⚠️ URL 열기 실패 ({container_id}): {e}")
+        container.exec_run("supervisorctl start network_agent", detach=True)
 
     async def _cleanup_old_containers(self):
         """서버 재시작 시 이전 세션의 샌드박스 컨테이너 정리."""
@@ -341,3 +342,5 @@ class SandboxPool:
 
 # 싱글톤 인스턴스
 sandbox_pool = SandboxPool()
+
+

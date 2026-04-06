@@ -1,58 +1,60 @@
 """
 시스템 트레이
 ============
-백그라운드에서 실행되며 트레이 아이콘으로 상태 표시.
-우클릭 메뉴: 상태 확인, 프록시 ON/OFF, 종료.
+대시보드 열기, 로그아웃, 종료.
 """
 
-from PIL import Image, ImageDraw
 import pystray
+from PIL import Image, ImageDraw
+import webbrowser
+
+from interceptor.client import gateway_client
 
 
-def _create_icon_image(color: str = "green") -> Image.Image:
-    """트레이 아이콘 이미지 생성 (간단한 원형)."""
+def _create_icon(color: str = "#22C55E") -> Image.Image:
     img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-
-    colors = {
-        "green": (34, 197, 94),
-        "orange": (245, 158, 11),
-        "red": (239, 68, 68),
-    }
-    fill = colors.get(color, colors["green"])
-    draw.ellipse([8, 8, 56, 56], fill=fill)
-
+    draw.ellipse([4, 4, 60, 60], fill="#1E293B")
+    draw.ellipse([18, 18, 46, 46], fill=color)
     return img
 
 
-def start_tray():
-    """시스템 트레이 시작."""
+def create_tray(on_logout_callback=None, on_quit_callback=None):
+    icon_color = "#22C55E"
+    status_text = "보호 중 ✓"
 
-    def on_status(icon, item):
-        """상태 확인."""
-        # TODO: Gateway 헬스체크 호출 → 결과 표시
-        pass
+    def on_dashboard(icon, item):
+        # 대시보드 열기 (토큰 포함)
+        token = gateway_client.token
+        dashboard = gateway_client.dashboard_url
+        if token:
+            webbrowser.open(f"{dashboard}/login?token={token}")
+        else:
+            webbrowser.open(dashboard)
 
-    def on_toggle(icon, item):
-        """프록시 ON/OFF 토글."""
-        # TODO: 시스템 프록시 설정 변경
-        pass
+    def on_logout(icon, item):
+        gateway_client.logout()
+        icon.stop()
+        if on_logout_callback:
+            on_logout_callback()
 
     def on_quit(icon, item):
-        """인터셉터 종료."""
-        # TODO: 시스템 프록시 설정 원복
         icon.stop()
+        if on_quit_callback:
+            on_quit_callback()
 
     icon = pystray.Icon(
         name="SecureOps",
-        icon=_create_icon_image("green"),
-        title="SecureOps Interceptor - Running",
+        icon=_create_icon(icon_color),
+        title=f"SecureOps — {status_text}",
         menu=pystray.Menu(
-            pystray.MenuItem("상태: 실행 중", on_status, enabled=False),
+            pystray.MenuItem(f"상태: {status_text}", None, enabled=False),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("프록시 ON/OFF", on_toggle),
+            pystray.MenuItem("대시보드 열기", on_dashboard),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("로그아웃", on_logout),
             pystray.MenuItem("종료", on_quit),
         ),
     )
 
-    icon.run()
+    return icon
