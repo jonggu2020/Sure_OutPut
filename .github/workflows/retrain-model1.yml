@@ -49,12 +49,12 @@ jobs:
       # 수동 실행(workflow_dispatch)이어도 동일하게 임계값을 적용한다.
       - name: 재학습 임계값 확인 (training_data.csv > 500행)
         id: gate
-        shell: pwsh
+        shell: powershell
         run: |
           $csv = "data/training_data.csv"
           if (-not (Test-Path $csv)) {
             Write-Host "training_data.csv 없음 — 수집된 데이터가 없습니다."
-            echo "proceed=false" >> $env:GITHUB_OUTPUT
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "proceed=false" -Encoding utf8
             exit 0
           }
           # 전체 줄 수 - 1(헤더) = 데이터 행 수
@@ -62,16 +62,16 @@ jobs:
           Write-Host "수집된 재학습 데이터: $rows 행"
           if ($rows -gt 500) {
             Write-Host "임계값(500) 초과 → 재학습을 진행합니다."
-            echo "proceed=true" >> $env:GITHUB_OUTPUT
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "proceed=true" -Encoding utf8
           } else {
             Write-Host "임계값(500) 미달 → 이번 주기는 건너뜁니다."
-            echo "proceed=false" >> $env:GITHUB_OUTPUT
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "proceed=false" -Encoding utf8
           }
 
       # ── 2) 재학습 ──────────────────────────────────────────
       - name: 재학습 실행 (train.py)
         if: steps.gate.outputs.proceed == 'true'
-        shell: pwsh
+        shell: powershell
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
         run: |
@@ -82,7 +82,7 @@ jobs:
       # 그 경우 이 스텝이 실패하고 — 후보는 evaluate.py 내부에서 폐기된다.
       - name: 평가 게이트 + 모델 승격 (evaluate.py)
         if: steps.gate.outputs.proceed == 'true'
-        shell: pwsh
+        shell: powershell
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
         run: |
@@ -91,7 +91,7 @@ jobs:
       # ── 4) 결과 안내 ───────────────────────────────────────
       - name: 완료 안내
         if: steps.gate.outputs.proceed == 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           Write-Host "============================================"
           Write-Host " 재학습 파이프라인 완료."
@@ -101,6 +101,6 @@ jobs:
 
       - name: 건너뜀 안내
         if: steps.gate.outputs.proceed != 'true'
-        shell: pwsh
+        shell: powershell
         run: |
           Write-Host "재학습 데이터가 임계값(500행)에 도달하지 않아 건너뛰었습니다."
