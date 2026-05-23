@@ -11,7 +11,7 @@
 # 범위 (방향 A — 빌드·테스트까지):
 #   1) 의존성 설치 — requirements.txt 가 깨지지 않는지
 #   2) import 체크 — app.main 이 import 되는지 (문법/누락 모듈 검출)
-#   3) 기동 체크   — FastAPI 앱이 실제로 떠서 /health 에 응답하는지
+#   3) 기동 체크   — FastAPI 앱이 실제로 떠서 /api/health 에 응답하는지
 #   배포(서비스 재시작)는 하지 않는다. 통과 후 본인이 수동 배포.
 #
 # 실행 위치: GitHub 클라우드 러너(ubuntu-latest).
@@ -70,9 +70,9 @@ jobs:
           python -c "import app.main; print('OK: app.main import 성공')"
 
       # ── 3) 테스트 — 기동 체크 ──────────────────────────────
-      # uvicorn 으로 앱을 백그라운드 기동 → /health 응답 확인 → 종료.
+      # uvicorn 으로 앱을 백그라운드 기동 → /api/health 응답 확인 → 종료.
       # FastAPI 앱이 실제로 부팅되는지(lifespan 포함) 검증한다.
-      - name: 기동 체크 (/health 응답)
+      - name: 기동 체크 (/api/health 응답)
         env:
           MODEL_PHISHING_URL: http://localhost:8001
           JWT_SECRET: ci-test-secret
@@ -83,17 +83,17 @@ jobs:
           uvicorn app.main:app --host 127.0.0.1 --port 8000 &
           UVICORN_PID=$!
 
-          # 기동 대기 — 최대 20초간 /health 폴링
+          # 기동 대기 — 최대 20초간 /api/health 폴링
           for i in $(seq 1 20); do
-            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
-              echo "OK: /health 응답 확인"
+            if curl -sf http://127.0.0.1:8000/api/health > /dev/null; then
+              echo "OK: /api/health 응답 확인"
               kill $UVICORN_PID
               exit 0
             fi
             sleep 1
           done
 
-          echo "FAIL: 20초 내에 /health 가 응답하지 않음"
+          echo "FAIL: 20초 내에 /api/health 가 응답하지 않음"
           kill $UVICORN_PID 2>/dev/null
           exit 1
 
