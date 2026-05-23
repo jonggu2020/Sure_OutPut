@@ -7,6 +7,9 @@ build/
 .venv/
 venv/
 
+# Node
+node_modules/
+
 # Environment
 .env
 
@@ -31,3 +34,9 @@ Thumbs.db
 *.log
 
 !model-phishing/app/ml/phishing_ml_model.pkl
+
+# 데이터 / 산출물 (레포에 넣지 않음)
+*.csv
+*.zip
+wandb/
+data/

@@ -8,18 +8,11 @@ scrape_configs:
     static_configs:
       - targets: ["gateway:8000"]
 
-  # 모델 서버 메트릭
+  # 모델 서버 메트릭 (Model 1만 compose 내부 서비스)
+  # Model 2/3는 별도 PC의 WebSocket 클라이언트라 여기서 scrape하지 않음
   - job_name: "model-phishing"
     static_configs:
       - targets: ["model-phishing:8001"]
-
-  - job_name: "model-network"
-    static_configs:
-      - targets: ["model-network:8002"]
-
-  - job_name: "model-aiops"
-    static_configs:
-      - targets: ["model-aiops:8003"]
 
   # cAdvisor (Docker 컨테이너 메트릭)
   - job_name: "cadvisor"

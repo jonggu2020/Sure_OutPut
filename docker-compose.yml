@@ -12,8 +12,6 @@ services:
       - DATABASE_URL=postgresql+asyncpg://secureops:secureops@postgres:5432/secureops
       - REDIS_URL=redis://redis:6379/0
       - MODEL_PHISHING_URL=http://model-phishing:8001
-      - MODEL_NETWORK_URL=http://model-network:8002
-      - MODEL_AIOPS_URL=http://model-aiops:8003
       - JWT_SECRET=your-secret-key-change-in-production
     depends_on:
       postgres:
@@ -25,6 +23,7 @@ services:
 
   # ============================================
   # Model 1: HTML Phishing Detection
+  # (Model 2/3는 별도 PC에서 WebSocket 클라이언트로 실행 — compose 대상 아님)
   # ============================================
   model-phishing:
     build: ./model-phishing
@@ -32,28 +31,6 @@ services:
       - "8001:8001"
     environment:
       - MODEL_PATH=/app/ml/model.pkl
-    networks:
-      - secureops-net
-
-  # ============================================
-  # Model 2: Network Log Analysis
-  # ============================================
-  model-network:
-    build: ./model-network
-    ports:
-      - "8002:8002"
-    networks:
-      - secureops-net
-
-  # ============================================
-  # Model 3: AIOps Resource Monitoring (Admin Only)
-  # ============================================
-  model-aiops:
-    build: ./model-aiops
-    ports:
-      - "8003:8003"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - secureops-net
 
@@ -99,13 +76,14 @@ services:
       - secureops-net
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+    privileged: true
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
     ports:
-      - "8080:8080"
+      - "18080:8080"
     networks:
       - secureops-net
 

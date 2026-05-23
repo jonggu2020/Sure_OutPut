@@ -26,8 +26,6 @@ class Settings(BaseSettings):
 
     # ── 모델 서버 URL (Docker 내부 통신) ──
     MODEL_PHISHING_URL: str = "http://model-phishing:8001"
-    MODEL_NETWORK_URL: str = "http://model-network:8002"
-    MODEL_AIOPS_URL: str = "http://model-aiops:8003"
 
     # ── CORS ──
     ALLOWED_ORIGINS: list[str] = [

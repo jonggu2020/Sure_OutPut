@@ -13,15 +13,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.routers import auth, health, phishing, network, aiops, sandbox
 from app.services.sandbox_pool import sandbox_pool
+from app.services.metrics_collector import metrics_collector
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """앱 시작/종료 시 실행되는 로직."""
-    # 시작: 샌드박스 Pool 초기화 (Docker 컨테이너 미리 생성)
+    # 시작: 샌드박스 Pool 초기화
     await sandbox_pool.initialize()
+    # 시작: 메트릭 수집 백그라운드 태스크
+    await metrics_collector.start()
     yield
-    # 종료: 샌드박스 Pool 정리 (모든 컨테이너 삭제)
+    # 종료: 메트릭 수집 중지
+    await metrics_collector.stop()
+    # 종료: 샌드박스 Pool 정리
     await sandbox_pool.shutdown()
 
 

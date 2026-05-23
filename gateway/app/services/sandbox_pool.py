@@ -13,7 +13,6 @@ Pool 크기는 관리자 수동 조정 또는 AIOps 자동 조정 가능.
 """
 
 import asyncio
-import time
 import docker
 from docker.errors import NotFound, APIError
 from typing import Optional
@@ -285,35 +284,65 @@ class SandboxPool:
         self.containers.pop(container_name, None)
 
     async def _open_url_in_sandbox(self, container_id: str, url: str):
-        """샌드박스 컨테이너의 Chromium에서 특정 URL을 열기."""
+        """샌드박스 컨테이너의 Chromium에서 사용자 URL을 연다.
+
+        컨테이너 부팅 시 supervisord가 이미 Chromium을 about:blank로
+        띄워둔 상태이므로, 죽이고 다시 띄우지 않는다. 표준 Chromium은
+        이미 실행 중일 때 `chromium <url>`을 다시 호출하면 새 프로세스를
+        만들지 않고 기존 창에 해당 URL을 연다 (remote 호출).
+        → pkill / sleep / 재실행으로 인한 프로파일 충돌·타이밍 문제를 제거.
+        """
         if not self.client:
             return
+
+        # container_id로 name 찾기
+        target_name = None
+        for name, info in self.containers.items():
+            if info.container_id == container_id:
+                target_name = name
+                break
+
+        if not target_name:
+            print(f"⚠️ URL 열기 실패: 컨테이너를 찾을 수 없음 ({container_id})")
+            return
+
         try:
-            # container_id로 name 찾기
-            target_name = None
-            for name, info in self.containers.items():
-                if info.container_id == container_id:
-                    target_name = name
-                    break
-
-            if not target_name:
-                return
-
             container = self.client.containers.get(target_name)
-            # 기존 Chromium 종료 후 URL과 함께 재시작
-            container.exec_run("pkill -f chromium", detach=True)
-            time.sleep(3)
-            container.exec_run(
-                f'chromium --no-sandbox --disable-gpu --disable-software-rasterizer '
-                f'--disable-dev-shm-usage --no-first-run --start-maximized '
-                f'--window-size=1280,720 "{url}"',
-                detach=True,
+
+            # Chromium 프로세스가 준비될 때까지 잠깐 대기 (이벤트 루프 비차단).
+            # supervisord의 chromium startsecs=3 와 맞춘 안전 대기.
+            await asyncio.sleep(3)
+
+            # 이미 떠 있는 Chromium에 URL 전달 → 기존 창이 해당 URL로 이동.
+            # 새 프로세스를 띄우는 게 아니므로 about:blank 창과 충돌하지 않는다.
+            #
+            # ⚠️ --no-sandbox 필수: 컨테이너는 root로 실행되며, Chromium은
+            #    root에서 --no-sandbox 없이 실행하면 즉시 종료된다.
+            #    이 명령이 죽으면 기존 창에 URL을 전달하지 못해 about:blank가 남는다.
+            #    부팅 시 supervisord가 띄운 Chromium과 동일한 플래그로 맞춘다.
+            exec_result = container.exec_run(
+                [
+                    "chromium",
+                    "--no-sandbox",
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    url,
+                ],
+                detach=False,
                 environment={"DISPLAY": ":1", "HOME": "/root"},
             )
             print(f"   🌐 URL 열기: {target_name} → {url[:50]}...")
+            if exec_result.exit_code != 0:
+                # 실패 시 Chromium 출력을 그대로 로그로 남겨 원인 추적을 돕는다.
+                output = exec_result.output.decode("utf-8", errors="replace")
+                print(f"   ⚠️ Chromium 비정상 종료 (exit={exec_result.exit_code}): {output.strip()}")
+
+            # 네트워크 에이전트 시작 (할당된 컨테이너만 트래픽 수집).
+            # try 블록 안에 두어, 위에서 예외 시 NameError로 이어지지 않게 한다.
+            container.exec_run("supervisorctl start network_agent", detach=True)
+
         except Exception as e:
             print(f"⚠️ URL 열기 실패 ({container_id}): {e}")
-        container.exec_run("supervisorctl start network_agent", detach=True)
 
     async def _cleanup_old_containers(self):
         """서버 재시작 시 이전 세션의 샌드박스 컨테이너 정리."""
@@ -342,5 +371,3 @@ class SandboxPool:
 
 # 싱글톤 인스턴스
 sandbox_pool = SandboxPool()
-
-
