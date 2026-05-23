@@ -1,0 +1,107 @@
+# ============================================================
+# Gateway CI — 빌드 · 테스트
+# ============================================================
+# 게이트웨이 코드가 변경되면 의존성 설치 + 기동 체크를 수행한다.
+#
+# 트리거:
+#   - gateway/ 경로의 파일이 main 에 push 될 때
+#   - pull request 로 gateway/ 가 바뀔 때
+#   - 수동 실행
+#
+# 범위 (방향 A — 빌드·테스트까지):
+#   1) 의존성 설치 — requirements.txt 가 깨지지 않는지
+#   2) import 체크 — app.main 이 import 되는지 (문법/누락 모듈 검출)
+#   3) 기동 체크   — FastAPI 앱이 실제로 떠서 /health 에 응답하는지
+#   배포(서비스 재시작)는 하지 않는다. 통과 후 본인이 수동 배포.
+#
+# 실행 위치: GitHub 클라우드 러너(ubuntu-latest).
+#   - 코드 검증만 하므로 self-hosted runner 가 필요 없다.
+#   - Model 1 재학습과 달리 로컬 데이터/모델에 접근하지 않는다.
+# ============================================================
+
+name: Gateway CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gateway/**'           # 게이트웨이 코드가 바뀔 때만
+  pull_request:
+    paths:
+      - 'gateway/**'
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+
+    steps:
+      - name: 레포 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Python 설정
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ── 1) 빌드 — 의존성 설치 ──────────────────────────────
+      # requirements.txt 가 유효하고 모든 패키지가 설치되는지 검증.
+      - name: 의존성 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── 2) 테스트 — import 체크 ────────────────────────────
+      # app.main 을 import 해서 문법 오류 / 누락 모듈 / 잘못된
+      # import 경로를 잡아낸다. (가장 흔한 배포 사고를 사전 차단)
+      #
+      # config.py 가 .env 에 의존하지만 .env 는 레포에 없으므로,
+      # 테스트용 환경변수를 주입해 Settings() 가 실패하지 않게 한다.
+      - name: import 체크 (app.main)
+        env:
+          MODEL_PHISHING_URL: http://localhost:8001
+          JWT_SECRET: ci-test-secret
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          python -c "import app.main; print('OK: app.main import 성공')"
+
+      # ── 3) 테스트 — 기동 체크 ──────────────────────────────
+      # uvicorn 으로 앱을 백그라운드 기동 → /health 응답 확인 → 종료.
+      # FastAPI 앱이 실제로 부팅되는지(lifespan 포함) 검증한다.
+      - name: 기동 체크 (/health 응답)
+        env:
+          MODEL_PHISHING_URL: http://localhost:8001
+          JWT_SECRET: ci-test-secret
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          # 백그라운드로 게이트웨이 기동
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          UVICORN_PID=$!
+
+          # 기동 대기 — 최대 20초간 /health 폴링
+          for i in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+              echo "OK: /health 응답 확인"
+              kill $UVICORN_PID
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "FAIL: 20초 내에 /health 가 응답하지 않음"
+          kill $UVICORN_PID 2>/dev/null
+          exit 1
+
+      - name: 완료 안내
+        if: success()
+        run: |
+          echo "============================================"
+          echo " Gateway CI 통과 — 빌드 · 기동 체크 정상."
+          echo " 배포는 자동화하지 않습니다."
+          echo " 게이트웨이 서버를 끄고 다시 켜면 변경이 반영됩니다."
+          echo "============================================"
